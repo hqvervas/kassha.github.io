@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Интерактивный маршрут</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            position: relative;
+            color: #333;
+        }
+        
+        #background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+        }
+        
+        #moving-object {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            z-index: 2;
+            transition: all 1.5s ease-in-out;
+            filter: drop-shadow(0 5px 10px rgba(0,0,0,0.3));
+            will-change: transform;
+        }
+        
+        .stop-point {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.7);
+            border: 3px solid #3498db;
+            z-index: 3;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+        
+        .stop-point.active {
+            background-color: #e74c3c;
+            border-color: #c0392b;
+            box-shadow: 0 0 0 5px rgba(231, 76, 60, 0.3);
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(231, 76, 60, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); }
+        }
+        
+        .message-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            padding: 20px;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        
+        .message-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .message-box {
+            background-color: white;
+            border-radius: 15px;
+            padding: 25px;
+            max-width: 90%;
+            max-height: 80%;
+            overflow-y: auto;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            position: relative;
+            animation: popUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        
+        @keyframes popUp {
+            0% { transform: scale(0.7); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .message-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: #7f8c8d;
+            cursor: pointer;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background-color 0.2s;
+        }
+        
+        .close-btn:hover, .close-btn:active {
+            background-color: #f5f5f5;
+            color: #e74c3c;
+        }
+        
+        .message-content {
+            font-size: 1rem;
+            line-height: 1.5;
+            color: #34495e;
+        }
+        
+        .instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            color: white;
+            z-index: 4;
+            padding: 0 20px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            font-size: 1rem;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+        
+        .instructions.hidden {
+            opacity: 0;
+        }
+        
+        .progress-bar {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: calc(100% - 40px);
+            height: 8px;
+            background-color: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            z-index: 4;
+            overflow: hidden;
+        }
+        
+        .progress {
+            height: 100%;
+            background-color: #2ecc71;
+            width: 0%;
+            transition: width 0.5s;
+            border-radius: 4px;
+        }
+        
+        .progress-text {
+            position: absolute;
+            top: 30px;
+            left: 20px;
+            color: white;
+            font-size: 0.9rem;
+            z-index: 4;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+        
+        @media (max-width: 480px) {
+            #moving-object {
+                width: 70px;
+                height: 70px;
+            }
+            
+            .message-box {
+                padding: 20px;
+            }
+            
+            .message-title {
+                font-size: 1.1rem;
+            }
+            
+            .message-content {
+                font-size: 0.95rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Фоновое изображение -->
+    <img id="background" src="https://images.unsplash.com/photo-1506744038136-46273834b3fb.png" alt="Фоновое изображение">
+    
+    <!-- Объект, который будет двигаться -->
+    <img id="moving-object" src="https://cdn-icons-png.flaticon.com/512/744/744922.png" alt="Движущийся объект">
+    
+    <!-- Точки маршрута -->
+    <div class="stop-point" style="top: 90%; left: 75%;"></div>
+    <div class="stop-point" style="top: 80%; left: 75%;"></div>
+    <div class="stop-point" style="top: 70%; left: 60%;"></div>
+    <div class="stop-point" style="top: 65%; left: 40%;"></div>
+    <div class="stop-point" style="top: 55%; left: 25%;"></div>
+    <div class="stop-point" style="top: 45%; left: 35%;"></div>
+    <div class="stop-point" style="top: 38%; left: 50%;"></div>
+    
+    <!-- Информация о прогрессе -->
+    <div class="progress-bar">
+        <div class="progress"></div>
+    </div>
+    <div class="progress-text">Остановка: <span id="current-stop">0</span> из 7</div>
+    
+    <!-- Инструкция -->
+    <div class="instructions" id="instructions">
+        Нажмите на экран, чтобы начать движение по маршруту
+    </div>
+    
+    <!-- Окно с сообщением -->
+    <div class="message-overlay" id="message-overlay">
+        <div class="message-box">
+            <div class="message-header">
+                <div class="message-title" id="message-title">Точка 1</div>
+                <button class="close-btn" id="close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="message-content" id="message-content">
+                Текст сообщения для этой точки маршрута.
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Координаты точек маршрута (в процентах от размеров экрана)
+        const routePoints = [
+            { top: 90, left: 75, title: "Гречиха", text: "КРУПЫ  ИЗ  ГРЕЧИХИ: ядрица, продел. Способ приготовления: 1 стакан крупы, 2 стакана жидкости, 15-20 минут, не требует предварительного замачивания. Блюда из гречихи: каша, запеканка, суп, гарнир." },
+            { top: 80, left: 75, title: "Овёс", text: "КРУПЫ  ИЗ  ОВСА: геркулес, толокно. Способ приготовления: 1,5 стакан крупы, 1литр жидкости, 4 минуты, не требует предварительного замачивания. Блюда из овса: каша, кисель, печенье." },
+            { top: 70, left: 60, title: "Рис", text: "КРУПЫ  ИЗ  РИСА: рис шлифованный, полированный, дробленный. Способ приготовления: 1 стакан крупы, 1,5-2 стакана жидкости, 15-20 минут, не требует предварительного замачивания. Блюда из риса: каша, запеканка, суп, гарнир, пудинг." },
+            { top: 65, left: 40, title: "Пшеница", text: "КРУПЫ  ИЗ  ПШЕНИЦЫ: манная, полтавская, артек. Способ приготовления: 1-2 столовые ложки крупы, 1 стакана воды жидкости, 4 минуты, не требует предварительного замачивания. Блюда из пшеницы: каша, запеканка, пудинг, манник." },
+            { top: 55, left: 25, title: "Просо", text: "КРУПЫ  ИЗ  проса:  пшено дробленное, пшено шлифованное. Способ приготовления: 1 стакан крупы, 3 стакана жидкости, 45 минут, не требует предварительного замачивания. Блюда из проса: каша, суп, гарнир." },
+            { top: 45, left: 35, title: "Ячмень", text: "КРУПЫ  ИЗ  ячменя: перловая крупа, ячневая крупа. Способ приготовления: 1 стакан крупы, 2 стакана жидкости, 60 минут,  требует предварительного замачивания1-2 часа. Блюда из ячменя: каша, запеканка, суп, гарнир." },
+            { top: 38, left: 50, title: "Каша для контрольной", text: "Перед контрольной все каши хороши, ведь главное  - надежда и решимость души!" }
+        ];
+        
+        // Элементы DOM
+        const background = document.getElementById('background');
+        const movingObject = document.getElementById('moving-object');
+        const instructions = document.getElementById('instructions');
+        const messageOverlay = document.getElementById('message-overlay');
+        const messageTitle = document.getElementById('message-title');
+        const messageContent = document.getElementById('message-content');
+        const closeBtn = document.getElementById('close-btn');
+        const progressBar = document.querySelector('.progress');
+        const currentStopText = document.getElementById('current-stop');
+        const stopPoints = document.querySelectorAll('.stop-point');
+        
+        // Переменные состояния
+        let currentPoint = -1;
+        let isMoving = false;
+        let isMessageOpen = false;
+        
+        // Загрузка пользовательских изображений (замените эти URL на свои)
+        const customBackgroundUrl = 'https://img.freepik.com/free-vector/farm-scene-landscape-with-barn_1308-95904.jpg'; // Вставьте URL вашего фонового PNG
+        const customMovingObjectUrl = ''; // Вставьте URL вашего движущегося PNG
+        
+        // Если указаны пользовательские изображения, используем их
+        if (customBackgroundUrl) {
+            background.src = customBackgroundUrl;
+        }
+        
+        if (customMovingObjectUrl) {
+            movingObject.src = customMovingObjectUrl;
+        }
+        
+        // Начальная позиция движущегося объекта
+        movingObject.style.top = '90%';
+        movingObject.style.left = '80%';
+        
+        // Обработчик нажатия на экран
+        document.body.addEventListener('click', handleScreenTap);
+        
+        // Обработчик закрытия сообщения
+        closeBtn.addEventListener('click', closeMessage);
+        
+        // Обработчик нажатия на оверлей сообщения (чтобы не закрывалось при клике на само сообщение)
+        messageOverlay.addEventListener('click', function(e) {
+            if (e.target === messageOverlay) {
+                closeMessage();
+            }
+        });
+        
+        // Основная функция обработки нажатия на экран
+        function handleScreenTap() {
+            // Если открыто сообщение, не обрабатываем нажатие
+            if (isMessageOpen) return;
+            
+            // Если объект в движении, не обрабатываем нажатие
+            if (isMoving) return;
+            
+            // Переходим к следующей точке
+            currentPoint++;
+            
+            // Если прошли все точки, начинаем заново
+            if (currentPoint >= routePoints.length) {
+                resetRoute();
+                return;
+            }
+            
+            // Если это первая точка, скрываем инструкцию
+            if (currentPoint === 0) {
+                instructions.classList.add('hidden');
+            }
+            
+            // Обновляем прогресс
+            updateProgress();
+            
+            // Активируем текущую точку
+            activateCurrentPoint();
+            
+            // Двигаем объект к следующей точке
+            moveToNextPoint();
+        }
+        
+        // Перемещение объекта к следующей точке
+        function moveToNextPoint() {
+            const point = routePoints[currentPoint];
+            isMoving = true;
+            
+            // Плавное перемещение объекта
+            movingObject.style.top = `${point.top}%`;
+            movingObject.style.left = `${point.left}%`;
+            
+            // После завершения движения показываем сообщение
+            setTimeout(() => {
+                isMoving = false;
+                showMessage(point.title, point.text);
+            }, 1600); // Задержка должна соответствовать времени анимации в CSS
+        }
+        
+        // Показать сообщение
+        function showMessage(title, text) {
+            messageTitle.textContent = title;
+            messageContent.textContent = text;
+            messageOverlay.classList.add('active');
+            isMessageOpen = true;
+        }
+        
+        // Закрыть сообщение
+        function closeMessage() {
+            messageOverlay.classList.remove('active');
+            isMessageOpen = false;
+            
+            // Если это последняя точка, показываем сообщение о завершении
+            if (currentPoint === routePoints.length - 1) {
+                setTimeout(() => {
+                    instructions.textContent = "Маршрут завершён! Нажмите на экран, чтобы начать заново";
+                    instructions.classList.remove('hidden');
+                }, 500);
+            }
+        }
+        
+        // Активировать текущую точку маршрута
+        function activateCurrentPoint() {
+            // Деактивируем все точки
+            stopPoints.forEach(point => {
+                point.classList.remove('active');
+            });
+            
+            // Активируем текущую точку
+            if (currentPoint >= 0 && currentPoint < stopPoints.length) {
+                stopPoints[currentPoint].classList.add('active');
+            }
+        }
+        
+        // Обновить индикатор прогресса
+        function updateProgress() {
+            const progressPercent = (currentPoint + 1) / routePoints.length * 100;
+            progressBar.style.width = `${progressPercent}%`;
+            currentStopText.textContent = currentPoint + 1;
+        }
+        
+        // Сбросить маршрут
+        function resetRoute() {
+            currentPoint = -1;
+            movingObject.style.top = '38%';
+            movingObject.style.left = '50%';
+            progressBar.style.width = '0%';
+            currentStopText.textContent = '0';
+            
+            // Деактивируем все точки
+            stopPoints.forEach(point => {
+                point.classList.remove('active');
+            });
+            
+            // Показываем инструкцию
+            instructions.textContent = "Нажмите на экран, чтобы начать движение по маршруту";
+            instructions.classList.remove('hidden');
+        }
+        
+        // Инициализация - активируем первую точку, если нужно
+        window.addEventListener('load', () => {
+            // Для демонстрации сразу показываем инструкцию
+            instructions.classList.remove('hidden');
+        });
+    </script>
+</body>
+</html>
